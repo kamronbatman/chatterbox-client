@@ -31,6 +31,24 @@ $(function() {
         app.fetch();
       });
 
+      $.editable.addInputType('send_delete', {
+         element : $.editable.types.text.element,
+         buttons : function(settings, original) {
+             var default_buttons = $.editable.types['defaults'].buttons
+             default_buttons.apply(this, [settings, original]);
+
+             var third = $('<input type="button">');
+             third.val('Delete');
+             $(this).append(third);
+
+             $(third).click(function() {
+                 var objectid = $(original).attr('id');
+                 //console.log('third objectid', objectid);
+                 app.delete(objectid);
+             });
+         }
+     });
+
       //setInterval( function(){ app.fetch(); }, 5000 );
 
       // $('#main').css({'filter': 'alpha(opacity=75)','opacity': '.75'})
@@ -78,6 +96,23 @@ $(function() {
       });
     },
 
+    delete: function(objectid) {
+      $.ajax({
+        url: app.server + '/' + objectid,
+        type: 'DELETE',
+        success: function (data) {
+          console.log('chatterbox: Message deleted!');
+          console.log('chatterbox:', data);
+
+          app.deleteMessage(objectid);
+        },
+        error: function (data) {
+          console.error('chatterbox: Failed to update message');
+          console.log('chatterbox:', data);
+        }
+      });
+    },
+
     fetch: function() {
       $.ajax({
         url: app.server,
@@ -116,15 +151,19 @@ $(function() {
       $('#chats').children().remove();
     },
 
+    deleteMessage: function(objectid) {
+      $('#' + objectid).remove();
+    },
+
     createLine: function(room,username,text) {
-        return '<span>(<strong>' + room + '</strong>)</span>' +
-        '<span><em>' + username + '</em>:</span><span class="messagetext">' + text + '</span>';
+        return '(<strong>' + room + '</strong>)' +
+        '<em>' + username + '</em>:<span class="messagetext">' + text + '</span>';
     },
 
     addMessage: function(message) {
       var displayed = '';
 
-      //if (message.username && message.roomname) {
+      if (message.username && message.roomname) {
         if (message.auth) {
           if (message.auth2){
             var auth2 = app.cryptText( message.roomname, message.username, message.text );
@@ -151,26 +190,29 @@ $(function() {
           'data-username': message.username,
           'id': message.objectId,
           'data-auth': message.auth,
+          'data-auth2' : message.auth2,
           'data-auth3': message.auth3 })
         .html(displayed)
 
         .editable(function(value, settings){
           console.log('objectid', $(this).attr('id'));
-            var auth3 = $(this).data('auth3');
-            var username = $(this).data('username');
-            var roomname = $(this).data('roomname');
-            var objectid = $(this).attr('id');
-            var crypt = app.cryptText(roomname, username, $(this.revert).siblings('.messagetext').text());
+          var auth3 = $(this).data('auth3');
+          var auth = $(this).data('auth');
+          var auth2 = $(this).data('auth2');
+          var username = $(this).data('username');
+          var roomname = $(this).data('roomname');
+          var objectid = $(this).attr('id');
+          var crypt = app.cryptText(roomname, username, $(this.revert).siblings('.messagetext').text());
 
-            app.update( objectid, { text: value, auth3: auth3 == crypt ? app.cryptText(roomname, username, value) : undefined } );
-            return app.createLine(roomname,username, value);
-          }, { type: 'textarea', submit: 'Send', data: _.unescape(message.text)})
+          app.update( objectid, { text: value, auth3: auth3 == crypt || auth2 || auth ? app.cryptText(roomname, username, value) : undefined } );
+          return app.createLine(roomname,username, value);
+          }, { type: 'send_delete', submit: 'Send', data: _.unescape(message.text) || ' '})
 
         .prependTo('#chats');
 
         //Add Rooms
         app.addRoom(message.roomname);
-      //}
+      }
 
       app.currentTimeStamp = message.createdAt; //Update the latest time stamp
     },
