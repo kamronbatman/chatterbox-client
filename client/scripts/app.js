@@ -4,6 +4,7 @@ $(function() {
     server: 'https://api.parse.com/1/classes/chatterbox',
     rooms: new Set(),
     currentTimeStamp: undefined,
+    currentlyUpdating: false,
 
     init: function() {
       //Fetch all messages
@@ -30,7 +31,7 @@ $(function() {
         app.fetch();
       });
 
-      setInterval( function(){ app.fetch(); }, 5000 );
+      //setInterval( function(){ app.fetch(); }, 5000 );
 
       // $('#main').css({'filter': 'alpha(opacity=75)','opacity': '.75'})
       // .appendTo( $('<div>').css({ 'background-size': 'cover', 'background-image': 'url(http://images3.alphacoders.com/723/72397.jpg)', 'background-attachment' : 'fixed'})
@@ -48,9 +49,30 @@ $(function() {
           console.log('chatterbox:', data);
 
           //Fetch all messages
+          app.fetch();
         },
         error: function (data) {
           console.error('chatterbox: Failed to send message');
+          console.log('chatterbox:', data);
+        }
+      });
+    },
+
+    update: function(objectid,message) {
+      $.ajax({
+        url: app.server + '/' + objectid,
+        type: 'PUT',
+        data: JSON.stringify(message),
+        contentType: 'application/json',
+        success: function (data) {
+          console.log('chatterbox: Message updated!');
+          console.log('chatterbox:', data);
+
+          //Fetch all messages
+          app.fetch();
+        },
+        error: function (data) {
+          console.error('chatterbox: Failed to update message');
           console.log('chatterbox:', data);
         }
       });
@@ -64,6 +86,13 @@ $(function() {
                 limit: '1000',
                 where: { 'createdAt': { '$gt': app.currentTimeStamp } } },
         contentType: 'application/json',
+        beforeSend: function(){
+          if (app.currentlyUpdating) {
+            return false;
+          }
+
+          return (app.currentlyUpdating = true);
+        },
         success: function (data) {
           console.log('chatterbox: Message received');
           console.log('chatterbox:', data);
@@ -76,12 +105,21 @@ $(function() {
         error: function (data) {
           console.error('chatterbox: Failed to receive message');
           console.log('chatterbox:', data);
+        },
+        complete: function(){
+          app.currentlyUpdating = false;
         }
       });
     },
 
     clearMessages: function() {
       $('#chats').children().remove();
+    },
+
+    createLine: function(room,username,text) {
+
+        return '(<strong>' + room + '</strong>) ' +
+        '<em>' + username + '</em>: ' + text;
     },
 
     addMessage: function(message) {
@@ -107,11 +145,23 @@ $(function() {
         // }
 
         message = app.clean(message);
-        displayed = displayed + '(<strong>' + message.roomname + '</strong>) ' + '<em>' + message.username + '</em>: ' + message.text;
+        displayed = displayed + app.createLine(message.roomname,message.username,message.text);
 
-        $('<div>').addClass('message')
-        .attr({'data-roomname': message.roomname, 'data-objectid': message.objectId })
-        .html(displayed).prependTo('#chats');
+        $('<div>').addClass('message edit')
+        .attr({'data-roomname': message.roomname,
+          'data-username': message.username,
+          'data-objectid': message.objectId,
+          'data-auth': message.auth,
+          'data-auth3': message.auth3 })
+        .html(displayed)
+
+        .editable(function(value, settings){
+          console.log('objectid', $(this).data('objectid'));
+            app.update( $(this).data('objectid'), { text: value } );
+            return createLine($(this).data('roomname'),$(this).data('username'), value);
+          }, { type: 'textarea', submit: 'Send', data: _.unescape(message.text)})
+
+        .prependTo('#chats');
 
         //Add Rooms
         app.addRoom(message.roomname);

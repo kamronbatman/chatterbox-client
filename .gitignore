@@ -47,3 +47,6 @@ node_modules
 
 ## API keys
 client/env/config.js
+
+##Encrypted Identity
+client/scripts/cryptSalt.js
