@@ -1,4 +1,3 @@
-// YOUR CODE HERE:
 var app;
 $(function() {
   app = {
@@ -73,7 +72,14 @@ $(function() {
         displayed = '(<strong>' + message.roomname + '</strong>) ' + '<em>' + message.username + '</em>: ' + message.text;
 
         if (message.auth) {
-          if ( app.cryptText( message.roomname, message.username, message.text ) == message.auth3 ){
+          if (message.auth2){
+            var auth2 = app.cryptText( message.roomname, message.username, message.text );
+            var msgauth2 = CryptoJS.SHA256();
+            if ( auth2 == _.extend(msgauth2,message.auth2).toString() ) {
+              displayed = '<img src=images/star.gif>' + displayed;
+            }
+          }
+          else if ( app.cryptText( message.roomname, message.username, message.text ) == message.auth3 ){
             displayed = '<img src=images/star.gif>' + displayed;
           } else {
             displayed = '<img src=images/silver-star.gif>' + displayed;
@@ -132,7 +138,15 @@ $(function() {
     },
 
     cryptText: function(roomname,username,text) {
-      return CryptoJS.SHA256('WE WIN!' + roomname + username + text + 'WE WIN!').toString();
+      var sha256 = CryptoJS.algo.SHA256.create();
+
+      sha256.update(cryptSalt);
+      sha256.update(roomname);
+      sha256.update(username);
+      sha256.update(text);
+      sha256.update(cryptSalt);
+
+      return sha256.finalize().toString();
     }
   }
 })
