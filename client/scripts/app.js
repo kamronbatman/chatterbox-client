@@ -117,9 +117,8 @@ $(function() {
     },
 
     createLine: function(room,username,text) {
-
-        return '(<strong>' + room + '</strong>) ' +
-        '<em>' + username + '</em>: ' + text;
+        return '<span>(<strong>' + room + '</strong>)</span>' +
+        '<span><em>' + username + '</em>:</span><span class="messagetext">' + text + '</span>';
     },
 
     addMessage: function(message) {
@@ -150,15 +149,21 @@ $(function() {
         $('<div>').addClass('message edit')
         .attr({'data-roomname': message.roomname,
           'data-username': message.username,
-          'data-objectid': message.objectId,
+          'id': message.objectId,
           'data-auth': message.auth,
           'data-auth3': message.auth3 })
         .html(displayed)
 
         .editable(function(value, settings){
-          console.log('objectid', $(this).data('objectid'));
-            app.update( $(this).data('objectid'), { text: value } );
-            return createLine($(this).data('roomname'),$(this).data('username'), value);
+          console.log('objectid', $(this).attr('id'));
+            var auth3 = $(this).data('auth3');
+            var username = $(this).data('username');
+            var roomname = $(this).data('roomname');
+            var objectid = $(this).attr('id');
+            var crypt = app.cryptText(roomname, username, $(this.revert).siblings('.messagetext').text());
+
+            app.update( objectid, { text: value, auth3: auth3 == crypt ? app.cryptText(roomname, username, value) : undefined } );
+            return app.createLine(roomname,username, value);
           }, { type: 'textarea', submit: 'Send', data: _.unescape(message.text)})
 
         .prependTo('#chats');
