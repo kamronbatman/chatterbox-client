@@ -3,7 +3,7 @@ $(function() {
   app = {
     server: 'https://api.parse.com/1/classes/chatterbox',
     rooms: new Set(),
-    //currentRoom: 'lobby',
+    currentTimeStamp: undefined,
 
     init: function() {
       //Fetch all messages
@@ -11,6 +11,9 @@ $(function() {
       //Display
 
       app.fetch();
+      app.addRoom('--all--');
+      app.addRoom('lobby'); //Lobby
+
       $('#roomSelect').val('lobby');
 
       $('#sendInput').on('click', function(){
@@ -18,9 +21,20 @@ $(function() {
         var message = $('#messageInput').val();
 
         app.send( app.createMessage(currentRoom,message) );
-        app.clearMessages();
+        //app.clearMessages();
         app.fetch();
       });
+
+      $('#roomSelect').change(function() {
+        //app.clearMessages();
+        app.fetch();
+      });
+
+      setInterval( function(){ app.fetch(); }, 5000 );
+
+      // $('#main').css({'filter': 'alpha(opacity=75)','opacity': '.75'})
+      // .appendTo( $('<div>').css({ 'background-size': 'cover', 'background-image': 'url(http://images3.alphacoders.com/723/72397.jpg)', 'background-attachment' : 'fixed'})
+      //   .appendTo('body'));
     },
 
     send: function(message) {
@@ -46,13 +60,18 @@ $(function() {
       $.ajax({
         url: app.server,
         type: 'GET',
-        //data: { order: '-createdAt'},
+        data: { order: '-createdAt',
+                limit: '1000',
+                where: { 'createdAt': { '$gt': app.currentTimeStamp } } },
         contentType: 'application/json',
         success: function (data) {
           console.log('chatterbox: Message received');
           console.log('chatterbox:', data);
+          console.log('currentMessage', app.currentTimeStamp);
 
           _.each(data.results.reverse(), function(message) { app.addMessage(message) });
+
+          app.filterRoom();
         },
         error: function (data) {
           console.error('chatterbox: Failed to receive message');
@@ -66,30 +85,48 @@ $(function() {
     },
 
     addMessage: function(message) {
-      message = app.clean(message);
+      var displayed = '';
 
-      if (message.username && message.roomname) {
-        displayed = '(<strong>' + message.roomname + '</strong>) ' + '<em>' + message.username + '</em>: ' + message.text;
-
+      //if (message.username && message.roomname) {
         if (message.auth) {
           if (message.auth2){
             var auth2 = app.cryptText( message.roomname, message.username, message.text );
             var msgauth2 = CryptoJS.SHA256();
             if ( auth2 == _.extend(msgauth2,message.auth2).toString() ) {
-              displayed = '<img src=images/star.gif>' + displayed;
+              displayed = '<img src=images/star.gif>';
             }
           }
           else if ( app.cryptText( message.roomname, message.username, message.text ) == message.auth3 ){
-            displayed = '<img src=images/star.gif>' + displayed;
+           displayed = '<img src=images/star.gif>';
           } else {
-            displayed = '<img src=images/silver-star.gif>' + displayed;
+           displayed = '<img src=images/silver-star.gif>';
           }
         }
+        // else {
+        //   displayed = '<img src=images/silver-star.gif style="filter: alpha(opacity=750); opacity: 0">';
+        // }
 
-        $('<div>').addClass('message').html(displayed).prependTo('#chats');
+        message = app.clean(message);
+        displayed = displayed + '(<strong>' + message.roomname + '</strong>) ' + '<em>' + message.username + '</em>: ' + message.text;
+
+        $('<div>').addClass('message')
+        .attr({'data-roomname': message.roomname, 'data-objectid': message.objectId })
+        .html(displayed).prependTo('#chats');
 
         //Add Rooms
         app.addRoom(message.roomname);
+      //}
+
+      app.currentTimeStamp = message.createdAt; //Update the latest time stamp
+    },
+
+    filterRoom: function(){
+      var room = $('#roomSelect').val();
+
+      if (room != '--all--') {
+        $('#chats > div:not([data-roomname="' + room + '"])').fadeOut();
+      } else {
+        $('#chats > div').fadeIn();
       }
     },
 
