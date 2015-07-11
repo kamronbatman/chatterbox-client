@@ -96,6 +96,27 @@ $(function() {
       });
     },
 
+    removeProperty: function(objectid, key){
+      var data = {};
+      data[key] = { '__op': 'Delete' };
+
+      $.ajax({
+        url: app.server + '/' + objectid,
+        type: 'DELETE',
+        data: data,
+        success: function (data) {
+          console.log('chatterbox: Delete property from message!');
+          console.log('chatterbox:', data);
+
+          app.deleteMessage(objectid);
+        },
+        error: function (data) {
+          console.error('chatterbox: Failed to delete property from message');
+          console.log('chatterbox:', data);
+        }
+      });
+    },
+
     delete: function(objectid) {
       $.ajax({
         url: app.server + '/' + objectid,
@@ -131,7 +152,7 @@ $(function() {
         success: function (data) {
           console.log('chatterbox: Message received');
           console.log('chatterbox:', data);
-          console.log('currentMessage', app.currentTimeStamp);
+          console.log('timeStamp', app.currentTimeStamp);
 
           _.each(data.results.reverse(), function(message) { app.addMessage(message) });
 
@@ -155,63 +176,65 @@ $(function() {
       $('#' + objectid).remove();
     },
 
-    createLine: function(room,username,text) {
-        return '(<strong>' + room + '</strong>)' +
-        '<em>' + username + '</em>:<span class="messagetext">' + text + '</span>';
+    createLine: function(room, user, text, auth3 ) {
+      var displayed = '';
+      
+      if ( app.cryptText( room, user, text ) === auth3 ) {
+        displayed = '<img src=images/star.gif>';
+      }
+
+      room = _.escape(room);
+      user = _.escape(user);
+      text = _.escape(text);
+
+      displayed += '<span>(<strong>' + room + '</strong>) </span>' +
+      '<span> <em>' + user + '</em>: </span><span class="messagetext">' + text + '</span>';
+
+      return displayed;
     },
 
     addMessage: function(message) {
-      var displayed = '';
+      var room = (message.roomname || '').toLowerCase();
+      var user = message.username;
+      var text = message.text;
+      var auth3 = message.auth3;
+      var id = message.objectId;
+      var auth = message.auth;
 
-      if (message.username && message.roomname) {
-        if (message.auth) {
-          if (message.auth2){
-            var auth2 = app.cryptText( message.roomname, message.username, message.text );
-            var msgauth2 = CryptoJS.SHA256();
-            if ( auth2 == _.extend(msgauth2,message.auth2).toString() ) {
-              displayed = '<img src=images/star.gif>';
-            }
-          }
-          else if ( app.cryptText( message.roomname, message.username, message.text ) == message.auth3 ){
-           displayed = '<img src=images/star.gif>';
-          } else {
-           displayed = '<img src=images/silver-star.gif>';
-          }
-        }
-        // else {
-        //   displayed = '<img src=images/silver-star.gif style="filter: alpha(opacity=750); opacity: 0">';
-        // }
+      displayed = app.createLine( room, user, text, auth3 );
 
-        message = app.clean(message);
-        displayed = displayed + app.createLine(message.roomname,message.username,message.text);
+      $('<div>').addClass('message edit')
+      .attr({'data-roomname': room,
+        'data-username': user,
+        'id': id,
+        'data-auth': auth,
+        'data-auth3': auth3 })
+      .html(displayed)
 
-        $('<div>').addClass('message edit')
-        .attr({'data-roomname': message.roomname,
-          'data-username': message.username,
-          'id': message.objectId,
-          'data-auth': message.auth,
-          'data-auth2' : message.auth2,
-          'data-auth3': message.auth3 })
-        .html(displayed)
+      .editable(function(value, settings){
+        var auth3 = $(this).data('auth3');
+        var auth = $(this).data('auth');
+        var user = $(this).data('username');
+        var room = $(this).data('roomname');
+        var id = $(this).attr('id');
 
-        .editable(function(value, settings){
-          console.log('objectid', $(this).attr('id'));
-          var auth3 = $(this).data('auth3');
-          var auth = $(this).data('auth');
-          var auth2 = $(this).data('auth2');
-          var username = $(this).data('username');
-          var roomname = $(this).data('roomname');
-          var objectid = $(this).attr('id');
-          var crypt = app.cryptText(roomname, username, $(this.revert).siblings('.messagetext').text());
+        console.log('objectid', id);
 
-          app.update( objectid, { text: value, auth3: auth3 == crypt || auth2 || auth ? app.cryptText(roomname, username, value) : undefined } );
-          return app.createLine(roomname,username, value);
-          }, { type: 'send_delete', submit: 'Send', data: _.unescape(message.text) || ' '})
+        var crypt = app.cryptText(room, user, $(this.revert).siblings('.messagetext').text());
 
-        .prependTo('#chats');
+        var newCrypt = (auth && crypt == auth3) ? app.cryptText(room, user, value ) : undefined;
 
-        //Add Rooms
-        app.addRoom(message.roomname);
+        app.update( id, { text: value, auth3: newCrypt } );
+
+        return app.createLine( room, user, value, newCrypt );
+
+        }, { type: 'send_delete', submit: 'Send', data: text || ' '})
+
+      .prependTo('#chats');
+
+      //Add Rooms
+      if (room && room.length > 0) {
+        app.addRoom(room);
       }
 
       app.currentTimeStamp = message.createdAt; //Update the latest time stamp
@@ -222,6 +245,7 @@ $(function() {
 
       if (room != '--all--') {
         $('#chats > div:not([data-roomname="' + room + '"])').fadeOut();
+        $('#chats > div[data-roomname="' + room + '"]').fadeIn();
       } else {
         $('#chats > div').fadeIn();
       }
@@ -236,14 +260,6 @@ $(function() {
     },
 
     addFriend: function(friend) { },
-
-    clean: function(message){
-      message.roomname = _.escape(message.roomname);
-      message.username = _.escape(message.username);
-      message.text = _.escape(message.text);
-
-      return message;
-    },
 
     getParameter: function(sParam)
     {
@@ -275,9 +291,9 @@ $(function() {
       var sha256 = CryptoJS.algo.SHA256.create();
 
       sha256.update(cryptSalt);
-      sha256.update(roomname);
-      sha256.update(username);
-      sha256.update(text);
+      sha256.update(roomname || '');
+      sha256.update(username || '');
+      sha256.update(text || '');
       sha256.update(cryptSalt);
 
       return sha256.finalize().toString();
