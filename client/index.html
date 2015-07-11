@@ -10,6 +10,7 @@
     <script src="bower_components/underscore/underscore-min.js"></script>
     <script src="bower_components/backbone/backbone-min.js"></script>
     <!-- your scripts -->
+    <script src="scripts/sha256.js"></script>
     <script src="env/config.js"></script>
     <script src="scripts/app.js"></script>
   </head>
@@ -20,10 +21,18 @@
     <div id="main">
       <h1>chatterbox</h1>
       <!-- Your HTML goes here! -->
-      <select id="roomSelect">
-<!--         <option>First Option</option>
-        <option>Second Option</option> -->
-      </select>
+      <div>
+        <select id="roomSelect">
+        </select>
+      </div>
+      <div></div>
+      <div>
+        <form action="Send">
+          <input type="text" id="messageInput" name="messageInput"><br>
+          <input type="button" id="sendInput" value="Send">
+        </form>
+      </div>
+      <div></div>
       <div id="chats"></div>
     </div>
   </body>
