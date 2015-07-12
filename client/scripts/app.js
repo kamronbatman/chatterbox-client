@@ -225,6 +225,7 @@ $(function() {
         var newCrypt = (auth && crypt == auth3) ? app.cryptText(room, user, value ) : undefined;
 
         app.update( id, { text: value, auth3: newCrypt } );
+        console.log('data', $(this).editable());
 
         return app.createLine( room, user, value, newCrypt );
 
